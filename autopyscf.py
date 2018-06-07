@@ -226,6 +226,7 @@ class PySCFPBCWriter:
     self.gmesh=[4,4,4]
     self.xyz=""
     self.latticevec=""
+    self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
     self.kpts=[2,2,2]
     self.bfd_library="BFD_Library.xml"
     self.basis_parameters={'cutoff':0.2,'basis_name':'vtz',
@@ -276,7 +277,7 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      self.from_cif(d['cif'])
+      self.from_cif(d['cif'], supercell=self.supercell)
 
 
   #-----------------------------------------------
