@@ -5,6 +5,7 @@ from pymatgen.io.cif import CifParser
 import pyscf
 from pyscf.scf.uhf import UHF,mulliken_meta
 from copy import deepcopy
+from autopaths import paths
 
 ##########################################################
 # Tools for handling basis set input.
@@ -95,7 +96,6 @@ class PySCFWriter:
     self.method='ROHF' 
     self.postHF=False   
     self.direct_scf_tol=1e-10
-    self.pyscf_path=[]
     self.spin=0
     self.xyz=""
     
@@ -163,7 +163,6 @@ class PySCFWriter:
     f=open(fname,'w')
     restart_fname = 'restart_'+fname
     re_f = open(restart_fname, 'w')
-    add_paths=[]
 
     # Figure out correct default initial guess (if not set).
     if self.dm_generator is None:
@@ -181,11 +180,9 @@ class PySCFWriter:
     else:
       basisstr="'%s'"%self.basis
 
-    for i in self.pyscf_path:
-      add_paths.append("sys.path.append('"+i+"')")
     outlines=[
         "import sys",
-      ] + add_paths + [
+        "sys.path.append('%s')"%paths['pyscf'],
         "import pyscf",
         "from pyscf import gto,scf,mcscf,fci,lib",
         "from pyscf.scf import RHF, ROHF, UHF",
@@ -253,7 +250,6 @@ class PySCFPBCWriter:
     self.max_cycle=50
     self.method='RKS' 
     self.direct_scf_tol=1e-7
-    self.pyscf_path=[]
     self.spin=0
     self.gmesh=None
     self.xyz=""
@@ -318,7 +314,6 @@ class PySCFPBCWriter:
     f=open(fname,'w')
     restart_fname = 'restart_'+fname
     re_f = open(restart_fname, 'w')
-    add_paths=[]
 
     if type(self.basis)!=str:
       basisstr=format_basis(self.basis)
@@ -335,12 +330,9 @@ class PySCFPBCWriter:
         print("Warning: default guess not set for method=%s.\n Trying UHF."%self.method)
         self.dm_generator=dm_from_uhf_minao()
 
-    #print(self.dm_generator)
-    for i in self.pyscf_path:
-      add_paths.append("sys.path.append('"+i+"')")
     outlines=[
         "import sys",
-      ] + add_paths + [
+        "sys.path.append('%s')"%paths['pyscf'],
         "import pyscf",
         "import numpy",
         "from pyscf.scf.addons import remove_linear_dep_",
