@@ -119,7 +119,7 @@ class PySCFManager:
         if os.path.exists(self.chkfile):
           self.writer.dm_generator=dm_from_chkfile("%d.%s"%(self.restarts,self.chkfile))
         self.writer.pyscf_input(self.driverfn,self.chkfile)
-        self.runner.add_task("/usr/bin/python3 %s > %s"%(self.driverfn,self.outfile))
+        self.runner.add_task("python3 %s > %s"%(self.driverfn,self.outfile))
         self.restarts+=1
       elif status=='done':
         print(self.logname,": %s status= %s, task complete."%(self.name,status))
