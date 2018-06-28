@@ -247,7 +247,7 @@ class PySCFPBCWriter:
     self.latticevec=""
     self.kpts=[2,2,2]
     self.basis='bfd_vtz'
-    self.remove_linear_dep=False
+    self.remove_linear_dep=False # float for setting tolerance.
     
     # Default chosen by method at runtime.
     self.dm_generator=None
@@ -378,7 +378,8 @@ class PySCFPBCWriter:
       outlines+=['m.xc="%s"'%self.xc]
 
     if self.remove_linear_dep:
-      outlines+=['m=remove_linear_dep_(m)']
+      lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep_
+      outlines+=['m=remove_linear_dep_(m,lindep=%f)'%lincutoff]
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]
     outlines += ['print ("All_done")']
