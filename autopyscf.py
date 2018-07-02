@@ -205,6 +205,7 @@ class PySCFPBCWriter:
     self.completed=False
     self.dft="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
+    self.cell_precision=1e-8 
     self.ecp="bfd"
     self.level_shift=0.0
     self.conv_tol=1e-7
@@ -322,6 +323,7 @@ class PySCFPBCWriter:
         "mesh="+str(self.gmesh)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
+        "precision=%s"%self.cell_precision,
         "basis=basis,",
         "spin=%i,"%self.spin,
         "ecp='%s')"%self.ecp,
