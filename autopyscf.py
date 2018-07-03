@@ -348,7 +348,7 @@ class PySCFPBCWriter:
         ]+gmesh+[
         "  a='''"+str(self.latticevec) +"''',",
         "  basis=basis,",
-        "  precision=%s"%self.cell_precision,
+        "  precision=%s,"%self.cell_precision,
         "  spin=%i,"%self.spin,
         "  ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge
@@ -380,7 +380,7 @@ class PySCFPBCWriter:
       outlines+=['m.xc="%s"'%self.xc]
 
     if self.remove_linear_dep:
-      lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep_
+      lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep
       outlines+=['m=remove_linear_dep_(m,lindep=%f)'%lincutoff]
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]

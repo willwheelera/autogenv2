@@ -363,7 +363,7 @@ class PySCFRunnerPBS(RunnerPBS):
     qsublines+=[
          "#PBS -l walltime=%s"%self.walltime,
          "#PBS -j oe",
-         "#PBS -N %s"%self.jobname,
+         "#PBS -N %s"%jobname,
          "#PBS -o %s"%jobout,
          "cd ${PBS_O_WORKDIR}",
          "export OMP_NUM_THREADS=%d"%(self.nn*self.np),
