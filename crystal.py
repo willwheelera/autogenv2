@@ -528,9 +528,7 @@ class CrystalReader:
             shift += 1
           self.output['atomic_charges']=chgs
 
-        # get names and list positions of all atoms
         elif('X(ANGSTROM)' in line):
-          reading_atoms = True
           i = li + 1
           names = []
           positions = []
@@ -539,7 +537,6 @@ class CrystalReader:
           while(len(split_line) != 0):
             if((split_line[0] == 'PROCESS') or (len(split_line) != 6)):
               pass
-
             else:
               name = split_line[2] + "_positions"
               if(name in names):
