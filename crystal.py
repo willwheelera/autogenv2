@@ -498,12 +498,14 @@ class CrystalReader:
         self.completed=False
         lines = []
         print(self.__class__.__name__,": Crystal output is unreadable, this usually happens when the process as been killed.")
+
       for li,line in enumerate(lines):
         if 'SCF ENDED - CONVERGENCE ON ENERGY' in line:
           self.output['total_energy']=float(line.split()[8])    
           print(self.__class__.__name__,": SCF ended converging on %f"%self.output['total_energy'])
           status='done'
           self.completed=True
+
         elif 'SCF ENDED - TOO MANY CYCLES' in line:
           last=float(line.split()[8])
           print("SCF ended at %f Ha without convergence"%last)
@@ -525,6 +527,31 @@ class CrystalReader:
             chgs += map(float,lines[li+shift].split())
             shift += 1
           self.output['atomic_charges']=chgs
+
+        # get names and list positions of all atoms
+        elif('X(ANGSTROM)' in line):
+          reading_atoms = True
+          i = li + 1
+          names = []
+          positions = []
+          
+          split_line = line.split()
+          while(len(split_line) != 0):
+            if((split_line[0] == 'PROCESS') or (len(split_line) != 6)):
+              pass
+
+            else:
+              name = split_line[2] + "_positions"
+              if(name in names):
+                positions[names.index(name)].append(int(split_line[0]))
+              else:
+                names.append(name)
+                positions.append([int(split_line[0])])
+            split_line = lines[i].split()
+            i += 1
+          for idx, name in enumerate(names):
+            self.output[name] = positions[idx]
+
     else:
       # Just to be sure/clear...
       self.completed=False
