@@ -41,8 +41,6 @@ class QWalkManager:
     self.bundle=bundle
 
     self.completed=False
-    self.scriptfile=None
-    self.bundle_ready=False
     self.infile=name
     self.outfile="%s.o"%self.infile
     # Note: qwfiles stores file names of results, used for exporting trial wave functions.
@@ -129,10 +127,7 @@ class QWalkManager:
       self.completed=True
 
     # Ready for bundler or else just submit the jobs as needed.
-    if self.bundle:
-      self.scriptfile="%s.run"%self.name
-      self.bundle_ready=self.runner.script(self.scriptfile)
-    else:
+    if not self.bundle:
       qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
 
     # Update the file.

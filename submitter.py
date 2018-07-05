@@ -20,32 +20,14 @@ class LocalSubmitter:
             )
             returns a list of queue ids (list of strings)
   """
-  #-------------------------------------------------------
-  def _qsub(self,exe,prep_commands=[],final_commands=[],
-      name="",stdout="runstdout",loc=""):
-    """ Helper function for executable submitters. 
-    Should work in most cases to simplify code."""
-
-    if loc=="": loc=os.getcwd()
-    if name=="": name=loc
-    header = []
-    exeline = exe
-    commands = header +  prep_commands + [exeline] + final_commands
-
-    outstr = ""
-    for c in commands:
-      print(c)
-      sub.call(c,stdout=open(stdout,'w'),shell=True)
-    return []
-
 #-------------------------------------------------------
 
-def check_PBS_status(queueid):
+def check_BW_stati(queueid):
   """Utility function to determine the status of a PBS job."""
   try:
     qstat = sub.check_output(
         "qstat %s"%queueid, stderr=sub.STDOUT, shell=True
-      ).decode().split('\n')[-2].split()[4]
+      ).decode().split('\n')[-2].split()[-2]
   except sub.CalledProcessError:
     return "unknown"
   if qstat == "R" or qstat == "Q":
