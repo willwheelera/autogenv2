@@ -22,24 +22,11 @@ class LocalSubmitter:
   """
 #-------------------------------------------------------
 
-def check_BW_stati(queueid):
-  """Utility function to determine the status of a PBS job."""
-  try:
-    qstat = sub.check_output(
-        "qstat %s"%queueid, stderr=sub.STDOUT, shell=True
-      ).decode().split('\n')[-2].split()[-2]
-  except sub.CalledProcessError:
-    return "unknown"
-  if qstat == "R" or qstat == "Q":
-    return "running"
-  if qstat == "C" or qstat == "E":
-    return "finished"
-  return 'unknown'
-
-#-------------------------------------------------------
-def check_PBS_stati(queueid):
-  """Utility function to determine the status of a set PBS job.
-  Can be done with one qstat call which can improve speed."""
+def check_BW_stati(queueids):
+  """Utility function to determine the status of a set Blue Waters job.
+  Args: 
+    queueids (list): list of queueids as string representation of int, e.g. ['4819103','4819104'].
+  """
   try:
     qstat = sub.check_output(
         "qstat ", stderr=sub.STDOUT, shell=True
@@ -47,7 +34,29 @@ def check_PBS_stati(queueid):
   except sub.CalledProcessError:
     return "unknown"
   qstat=qstat.split('\n')
-  for qid in queueid:
+  for qid in queueids:
+    for line in qstat:
+      spl=line.split()
+      if qid in line and len(spl) > 4:
+        stat=line.split()[-2]
+        if stat == "R" or stat == "Q":
+          return "running"
+  return 'unknown'
+
+#-------------------------------------------------------
+def check_PBS_stati(queueids):
+  """Utility function to determine the status of a set PBS job.
+  Args: 
+    queueids (list): list of queueids as string representation of int, e.g. ['4819103','4819104'].
+  """
+  try:
+    qstat = sub.check_output(
+        "qstat ", stderr=sub.STDOUT, shell=True
+      ).decode()
+  except sub.CalledProcessError:
+    return "unknown"
+  qstat=qstat.split('\n')
+  for qid in queueids:
     for line in qstat:
       spl=line.split()
       if qid in line and len(spl) > 4:
