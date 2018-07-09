@@ -232,9 +232,11 @@ class PySCFPBCWriter:
   def __init__(self,options={}):
     self.charge=0
     self.cif=''
+    self.supercell=None
     self.completed=False
     self.xc="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
+    self.cell_precision=1e-8 
     self.ecp="bfd"
     self.level_shift=0.0
     self.conv_tol=1e-7
@@ -247,7 +249,7 @@ class PySCFPBCWriter:
     self.latticevec=""
     self.kpts=[2,2,2]
     self.basis='bfd_vtz'
-    self.remove_linear_dep=False
+    self.remove_linear_dep=False # float for setting tolerance.
     
     # Default chosen by method at runtime.
     self.dm_generator=None
@@ -286,7 +288,10 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      self.from_cif(d['cif'])
+      if self.supercell is None:
+        self.from_cif(d['cif'])
+      else:
+        self.from_cif(d['cif'],supercell=self.supercell)
 
 
   #-----------------------------------------------
@@ -347,6 +352,7 @@ class PySCFPBCWriter:
         ]+gmesh+[
         "  a='''"+str(self.latticevec) +"''',",
         "  basis=basis,",
+        "  precision=%s,"%self.cell_precision,
         "  spin=%i,"%self.spin,
         "  ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge
@@ -378,7 +384,8 @@ class PySCFPBCWriter:
       outlines+=['m.xc="%s"'%self.xc]
 
     if self.remove_linear_dep:
-      outlines+=['m=remove_linear_dep_(m)']
+      lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep
+      outlines+=['m=remove_linear_dep_(m,lindep=%f)'%lincutoff]
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]
     outlines += ['print ("All_done")']
