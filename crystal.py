@@ -382,7 +382,7 @@ class CrystalWriter:
     ncontract=0
     for contraction in element.findall(basis_path):
         angular = contraction.get('Angular_momentum')
-        if found_orbitals.count(angular) >= nangular[angular]:
+        if found_orbitals.count(angular) >= self.nangular[angular]:
             continue
 
         #Figure out which coefficients to print out based on the minimal exponent
@@ -528,26 +528,29 @@ class CrystalReader:
             shift += 1
           self.output['atomic_charges']=chgs
 
-        elif('X(ANGSTROM)' in line):
+        elif('X(ANGSTROM)' in line): # line that position list starts on
           i = li + 1
-          names = []
-          positions = []
-          
+          species = []
+          position = []
           split_line = line.split()
-          while(len(split_line) != 0):
+          while(len(split_line) != 0): # 0 length line is end of positions
+
+            # process is irrelevant output that pops up sometimes
             if((split_line[0] == 'PROCESS') or (len(split_line) != 6)):
               pass
+            
+            # good line. get species and position
             else:
-              name = split_line[2] + "_positions"
-              if(name in names):
-                positions[names.index(name)].append(int(split_line[0]))
-              else:
-                names.append(name)
-                positions.append([int(split_line[0])])
+              name = split_line[2]
+              species.append(name)
+              position.append((float(split_line[3]), float(split_line[4]), 
+                                  float(split_line[5])))
             split_line = lines[i].split()
             i += 1
-          for idx, name in enumerate(names):
-            self.output[name] = positions[idx]
+
+          # add to self.output
+          self.output["atomic_species"] = species
+          self.output["atomic_positions"] = position
 
     else:
       # Just to be sure/clear...
