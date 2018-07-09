@@ -40,6 +40,7 @@ class CrystalWriter:
     #Numerical convergence parameters
     self.basis_params=[0.2,2,3]
     self.basislines=None # Option to manually input basis lines.
+    self.nangular={"s":1,"p":1,"d":1,"f":1,"g":0} 
     self.cutoff=0.0    
     self.kmesh=[8,8,8]
     self.gmesh=16
@@ -361,7 +362,6 @@ class CrystalWriter:
     
     maxorb=3
     basis_name="vtz"
-    nangular={"s":1,"p":1,"d":1,"f":1,"g":0}
     maxcharge={"s":2,"p":6,"d":10,"f":15}
     basis_index={"s":0,"p":2,"d":3,"f":4}
     transition_metals=["Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn"]

@@ -232,6 +232,7 @@ class PySCFPBCWriter:
   def __init__(self,options={}):
     self.charge=0
     self.cif=''
+    self.supercell=None
     self.completed=False
     self.xc="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
@@ -287,7 +288,10 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      self.from_cif(d['cif'])
+      if self.supercell is None:
+        self.from_cif(d['cif'])
+      else:
+        self.from_cif(d['cif'],supercell=self.supercell)
 
 
   #-----------------------------------------------
