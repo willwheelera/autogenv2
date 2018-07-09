@@ -382,7 +382,7 @@ class CrystalWriter:
     ncontract=0
     for contraction in element.findall(basis_path):
         angular = contraction.get('Angular_momentum')
-        if found_orbitals.count(angular) >= nangular[angular]:
+        if found_orbitals.count(angular) >= self.nangular[angular]:
             continue
 
         #Figure out which coefficients to print out based on the minimal exponent
