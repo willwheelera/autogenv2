@@ -11,6 +11,7 @@ from linear import LinearWriter,LinearReader
 from dmc import DMCWriter,DMCReader
 from trialfunc import SlaterJastrow
 from autorunner import RunnerPBS
+from pickle import load
 import numpy as np
 
 ###################################################################################################################
@@ -368,5 +369,63 @@ def run_tests():
   for job in jobs:
     job.nextstep()
 
+def check_tests():
+  jobs=[]
+  report=[]
+
+  # Tests that are compared to reference data.
+  jobs+=quick_crystal()
+
+  for job in jobs:
+
+    jobtype=job.__class__.__name__
+    ref=load(open('ref/'+job.path+job.pickle,'rb'))
+    if jobtype=='CrystalManager':
+      issame=compare_crystal(job,ref)
+    elif jobtype=='QWalkManager':
+      issame=compare_qwalk(job,ref)
+    else:
+      raise NotImplementedError("No routine for checking %s results yet"%jobtype)
+
+    if not issame:
+      report.append("%s/%s: jobs differ more than tolerance."%(job.path,job.name))
+
+  print("#######################################")
+  print("### Results of tests ##################" )
+  print("%d jobs don't match"%len(report))
+  print('\n'.join(report))
+
+
+
+def compare_crystal(job,ref):
+  ''' Make sure two crystal jobs have the same results within machine precision.'''
+  issame=True
+
+  job.collect()
+  ref.collect()
+
+  for scalarprop in 'total_energy',:
+    if abs(job.creader.output[scalarprop]-ref.creader.output[scalarprop])>1e-15:
+      issame=False
+
+  return issame
+
+# So far this is only checking linear. TODO add DMC and figure out a way to check variance optimization with error.
+def compare_qwalk(job,ref,nsigma=3):
+  ''' Make sure two qwalk jobs have the same results within error.'''
+  issame=True
+
+  job.collect()
+  ref.collect()
+
+  try:
+    issame=abs(job.reader.output['energy'][0] - ref.reader.output['energy'][0]) < \
+        nsigma*(job.reader.output['energy_err'][0]**2 + job.reader.output['energy_err'][0]**2)**0.5
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  return issame
+
 if __name__=='__main__':
-  run_tests()
+  #run_tests()
+  check_tests()
