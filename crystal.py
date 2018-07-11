@@ -38,9 +38,9 @@ class CrystalWriter:
     self.spinedit=[] # Spins to flip from guess_fort
 
     #Numerical convergence parameters
-    self.basis_params=[0.2,2,3]
+    self.basis_params=[0.2,2,3] # augment basis after adjusting.
     self.basislines=None # Option to manually input basis lines.
-    self.nangular={"s":1,"p":1,"d":1,"f":1,"g":0} 
+    self.nangular={"s":1,"p":1,"d":1,"f":1,"g":0} # Number of elements to keep from the xml.
     self.cutoff=0.0    
     self.kmesh=[8,8,8]
     self.gmesh=16
@@ -367,7 +367,8 @@ class CrystalWriter:
     transition_metals=["Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn"]
     if symbol in transition_metals:
       maxorb=4
-      nangular['s']=2
+      if self.nangular['s']<2:
+        self.nangular['s']=2
     
     tree = ElementTree()
     tree.parse(self.xml_name)
@@ -382,7 +383,7 @@ class CrystalWriter:
     ncontract=0
     for contraction in element.findall(basis_path):
         angular = contraction.get('Angular_momentum')
-        if found_orbitals.count(angular) >= nangular[angular]:
+        if found_orbitals.count(angular) >= self.nangular[angular]:
             continue
 
         #Figure out which coefficients to print out based on the minimal exponent
