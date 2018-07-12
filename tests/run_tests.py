@@ -14,6 +14,9 @@ from autorunner import RunnerPBS
 from pickle import load
 import numpy as np
 
+# TODO 
+# Dmc jobs aren't saving their queueid and are getting run multiple times, I think.
+
 ###################################################################################################################
 # Individual tests.
 def h2_crystal_equil_test():
@@ -388,14 +391,12 @@ def check_tests():
       raise NotImplementedError("No routine for checking %s results yet"%jobtype)
 
     if not issame:
-      report.append("%s/%s: jobs differ more than tolerance."%(job.path,job.name))
+      report.append("%s: jobs differ more than tolerance."%(job.path+job.name))
 
   print("#######################################")
   print("### Results of tests ##################" )
   print("%d jobs don't match"%len(report))
   print('\n'.join(report))
-
-
 
 def compare_crystal(job,ref):
   ''' Make sure two crystal jobs have the same results within machine precision.'''
@@ -411,16 +412,25 @@ def compare_crystal(job,ref):
   return issame
 
 # So far this is only checking linear. TODO add DMC and figure out a way to check variance optimization with error.
-def compare_qwalk(job,ref,nsigma=3):
+def compare_qwalk(job,ref,nsigma=1):
   ''' Make sure two qwalk jobs have the same results within error.'''
   issame=True
 
   job.collect()
   ref.collect()
 
+  print(job.reader.output.keys())
+
   try:
     issame=abs(job.reader.output['energy'][0] - ref.reader.output['energy'][0]) < \
         nsigma*(job.reader.output['energy_err'][0]**2 + job.reader.output['energy_err'][0]**2)**0.5
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  try:
+    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref.reader.output['properties']['total_energy']['value'][0]) < \
+        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + job.reader.output['properties']['total_energy']['error'][0]**2)**0.5
+    print('working')
   except KeyError:
     pass # probably not the right QMC type.
 
