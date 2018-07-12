@@ -18,7 +18,7 @@ import numpy as np
 # Dmc jobs aren't saving their queueid and are getting run multiple times, I think.
 
 ###################################################################################################################
-# Individual tests.
+# Individual test definitions.
 def h2_crystal_equil_test():
   jobs=[]
 
@@ -323,7 +323,7 @@ def mno_test():
   return jobs
 
 ###################################################################################################################
-# Test suites
+# Test suite definitions.
 def quick_crystal():
   ''' Fast-running tests of main crystal features. '''
   jobs=[]
@@ -363,7 +363,10 @@ def thorough_pyscf():
   You should probably run the quick tests before running these.'''
   return [] # TODO
 
+###################################################################################################################
+# Test operations
 def run_tests():
+  ''' Generate data using current generation of autogen.'''
   jobs=[]
 
   # Tests that are run.
@@ -372,21 +375,24 @@ def run_tests():
   for job in jobs:
     job.nextstep()
 
-def check_tests():
+def check_tests(reffn='refs.json'):
+  ''' Check the results of run_tests with reference data. '''
+  from json import load
   jobs=[]
   report=[]
 
   # Tests that are compared to reference data.
   jobs+=quick_crystal()
 
-  for job in jobs:
+  with open('refs.json','r') as inpf:
+    refs=load(inpf)
 
+  for job in jobs:
     jobtype=job.__class__.__name__
-    ref=load(open('ref/'+job.path+job.pickle,'rb'))
     if jobtype=='CrystalManager':
-      issame=compare_crystal(job,ref)
+      issame=compare_crystal(job,refs[job.path+job.name])
     elif jobtype=='QWalkManager':
-      issame=compare_qwalk(job,ref)
+      issame=compare_qwalk(job,refs[job.path+job.name])
     else:
       raise NotImplementedError("No routine for checking %s results yet"%jobtype)
 
@@ -395,47 +401,99 @@ def check_tests():
 
   print("#######################################")
   print("### Results of tests ##################" )
-  print("%d jobs don't match"%len(report))
+  print("%d jobs failed to match reference."%len(report))
   print('\n'.join(report))
 
 def compare_crystal(job,ref):
-  ''' Make sure two crystal jobs have the same results within machine precision.'''
+  ''' Make sure two crystal jobs have the same results within machine precision.
+  Args:
+    job (Manager): What you'd like to check.
+    ref (dict): Reference data.
+  '''
   issame=True
 
   job.collect()
-  ref.collect()
 
   for scalarprop in 'total_energy',:
-    if abs(job.creader.output[scalarprop]-ref.creader.output[scalarprop])>1e-15:
+    if abs(job.creader.output[scalarprop]-ref[scalarprop])>1e-15:
       issame=False
 
   return issame
 
-# So far this is only checking linear. TODO add DMC and figure out a way to check variance optimization with error.
-def compare_qwalk(job,ref,nsigma=1):
-  ''' Make sure two qwalk jobs have the same results within error.'''
+def compare_qwalk(job,ref,nsigma=3):
+  ''' Make sure two qwalk jobs have the same results within error.
+  Args:
+    job (Manager): What you'd like to check. 
+    ref (dict): Reference data.
+    nsigma (float): Number of standard devations to allow before test declairs the results are different.
+  '''
   issame=True
 
   job.collect()
-  ref.collect()
-
-  print(job.reader.output.keys())
 
   try:
-    issame=abs(job.reader.output['energy'][0] - ref.reader.output['energy'][0]) < \
-        nsigma*(job.reader.output['energy_err'][0]**2 + job.reader.output['energy_err'][0]**2)**0.5
+    issame=abs(job.reader.output['energy'][0] - ref['energy']) < \
+        nsigma*(job.reader.output['energy_err'][0]**2 + ref['energy_err']**2)**0.5
   except KeyError:
     pass # probably not the right QMC type.
 
   try:
-    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref.reader.output['properties']['total_energy']['value'][0]) < \
-        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + job.reader.output['properties']['total_energy']['error'][0]**2)**0.5
-    print('working')
+    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref['energy']) < \
+        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + ref['energy_err']**2)**0.5
   except KeyError:
     pass # probably not the right QMC type.
 
   return issame
 
+def update_refs(reffn='refs.json'):
+  ''' Update the references file.
+  Args:
+    reffn: Reference file name that will be produced.
+  '''
+  from json import dump
+  jobs=[]
+  refs={}
+  jobs+=quick_crystal()
+
+  for job in jobs:
+    jobtype=job.__class__.__name__
+    if jobtype=='CrystalManager':
+      refs[job.path+job.name]=grab_crystal_ref(job)
+    if jobtype=='QWalkManager':
+      refs[job.path+job.name]=grab_qwalk_ref(job)
+
+  with open(reffn,'w') as outf:
+    dump(refs,outf)
+
+def grab_crystal_ref(job):
+  ref={}
+  job.collect()
+
+  # For now only doing one property.
+  for prop in 'total_energy',:
+    ref[prop]=job.creader.output[prop]
+
+  return ref
+
+def grab_qwalk_ref(job):
+  ref={}
+  job.collect()
+
+  try:
+    ref['energy']=job.reader.output['energy'][0]
+    ref['energy_err']=job.reader.output['energy_err'][0]
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  try:
+    ref['energy']=job.reader.output['properties']['total_energy']['value'][0]
+    ref['energy_err']=job.reader.output['properties']['total_energy']['error'][0]
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  return ref
+
 if __name__=='__main__':
   #run_tests()
   check_tests()
+  #update_refs()
