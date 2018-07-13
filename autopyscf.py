@@ -88,8 +88,6 @@ class PySCFWriter:
   #-----------------------------------------------
   def pyscf_input(self,fname,chkfile):
     f=open(fname,'w')
-    restart_fname = 'restart_'+fname
-    re_f = open(restart_fname, 'w')
     add_paths=[]
 
     # Figure out correct default initial guess (if not set).
@@ -145,17 +143,9 @@ class PySCFWriter:
                    'print ("PostHF_done")']
     outlines += ['print ("All_done")']
 
-    restart_outlines=[] 
-    for line in  outlines: 
-      if 'mc.kernel(' in line:
-        restart_outlines += ["mc.__dict__.update(lib.chkfile.load('%s', 'mcscf'))\n"%chkfile]
-      restart_outlines += [line]  
-
     f.write('\n'.join(outlines))
-    re_f.write('\n'.join(restart_outlines))
 
     self.completed=True
-    #return fname,restart_fname, fname+".o",chkfile
      
 
 ####################################################
@@ -215,6 +205,7 @@ class PySCFPBCWriter:
     self.completed=False
     self.dft="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
+    self.cell_precision=1e-8 
     self.ecp="bfd"
     self.level_shift=0.0
     self.conv_tol=1e-7
@@ -294,8 +285,6 @@ class PySCFPBCWriter:
       
   def pyscf_input(self,fname,chkfile):
     f=open(fname,'w')
-    restart_fname = 'restart_'+fname
-    re_f = open(restart_fname, 'w')
     add_paths=[]
 
     # Figure out correct default initial guess (if not set).
@@ -335,6 +324,7 @@ class PySCFPBCWriter:
         "gs="+str(self.gmesh)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
+        "precision=%s"%self.cell_precision,
         "basis=basis,",
         "spin=%i,"%self.spin,
         "ecp='%s')"%self.ecp,
