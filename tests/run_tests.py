@@ -397,7 +397,7 @@ def check_tests(reffn='refs.json'):
       raise NotImplementedError("No routine for checking %s results yet"%jobtype)
 
     if not issame:
-      report.append("%s: jobs differ more than tolerance."%(job.path+job.name))
+      report.append("%s: jobs differ more than tolerance, or else aren't run yet."%(job.path+job.name))
 
   print("#######################################")
   print("### Results of tests ##################" )
@@ -410,13 +410,11 @@ def compare_crystal(job,ref):
     job (Manager): What you'd like to check.
     ref (dict): Reference data.
   '''
-  issame=True
+  issame=False
 
   job.collect()
 
-  for scalarprop in 'total_energy',:
-    if abs(job.creader.output[scalarprop]-ref[scalarprop])>1e-15:
-      issame=False
+  issame=abs(job.creader.output['total_energy']-ref['total_energy'])<1e-15
 
   return issame
 
@@ -427,19 +425,25 @@ def compare_qwalk(job,ref,nsigma=3):
     ref (dict): Reference data.
     nsigma (float): Number of standard devations to allow before test declairs the results are different.
   '''
-  issame=True
+  issame=False
 
   job.collect()
 
   try:
-    issame=abs(job.reader.output['energy'][0] - ref['energy']) < \
-        nsigma*(job.reader.output['energy_err'][0]**2 + ref['energy_err']**2)**0.5
+    issame=abs(job.reader.output['total_energy'] - ref['total_energy']) < \
+        nsigma*(job.reader.output['total_energy_err']**2 + ref['total_energy_err']**2)**0.5
   except KeyError:
     pass # probably not the right QMC type.
 
   try:
-    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref['energy']) < \
-        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + ref['energy_err']**2)**0.5
+    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref['total_energy']) < \
+        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + ref['total_energy_err']**2)**0.5
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  try:
+    issame=abs(job.reader.output['sigma'] - ref['sigma']) < \
+        ref['sigma'] # Not quite right, but will catch really bad runs.
   except KeyError:
     pass # probably not the right QMC type.
 
@@ -456,44 +460,47 @@ def update_refs(reffn='refs.json'):
   jobs+=quick_crystal()
 
   for job in jobs:
-    jobtype=job.__class__.__name__
-    if jobtype=='CrystalManager':
-      refs[job.path+job.name]=grab_crystal_ref(job)
-    if jobtype=='QWalkManager':
-      refs[job.path+job.name]=grab_qwalk_ref(job)
+    refs[job.path+job.name]=grab_job_ref(job)
 
   with open(reffn,'w') as outf:
     dump(refs,outf)
 
-def grab_crystal_ref(job):
-  ref={}
-  job.collect()
-
-  # For now only doing one property.
-  for prop in 'total_energy',:
-    ref[prop]=job.creader.output[prop]
-
-  return ref
-
-def grab_qwalk_ref(job):
+def grab_job_ref(job):
   ref={}
   job.collect()
 
   try:
-    ref['energy']=job.reader.output['energy'][0]
-    ref['energy_err']=job.reader.output['energy_err'][0]
-  except KeyError:
-    pass # probably not the right QMC type.
+    reader=job.reader
+  except AttributeError:
+    reader=job.creader
 
   try:
-    ref['energy']=job.reader.output['properties']['total_energy']['value'][0]
-    ref['energy_err']=job.reader.output['properties']['total_energy']['error'][0]
+    ref['total_energy'] = reader.output['total_energy']
   except KeyError:
-    pass # probably not the right QMC type.
+    try:
+      ref['total_energy'] =reader.output['properties']['total_energy']['value'][0]
+    except KeyError:
+      pass
+
+  try:
+    ref['total_energy_err']=reader.output['total_energy_err']
+  except KeyError:
+    try:
+      ref['total_energy_err']=reader.output['properties']['total_energy']['error'][0]
+    except KeyError:
+      pass
+
+  try:
+    ref['sigma']=reader.output['sigma']
+  except KeyError:
+    try:
+      ref['sigma']=reader.output['properties']['total_energy']['sigma'][0]
+    except KeyError:
+      pass
 
   return ref
 
 if __name__=='__main__':
-  #run_tests()
+  run_tests()
   check_tests()
   #update_refs()
