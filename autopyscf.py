@@ -313,7 +313,7 @@ class PySCFPBCWriter:
     if type(self.basis)!=str:
       basisstr=format_basis(self.basis)
     else:
-      basisstr="'%s'"%self.basis
+      basisstr="%s"%self.basis
 
     # Figure out correct default initial guess (if not set).
     if self.dm_generator is None:
@@ -339,7 +339,7 @@ class PySCFPBCWriter:
       ]
 
     if self.gmesh is not None:
-      gmesh=["  mesh="+str(self.gmesh)+","]
+      gmesh=["  gs="+str(self.gmesh)+","]
     else:
       gmesh=[]
 
