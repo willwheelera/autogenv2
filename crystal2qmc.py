@@ -174,16 +174,30 @@ def read_gred(gred="GRED.DAT"):
 ###############################################################################
 # Reads in kpoints and eigen{values,vectors} from KRED.DAT.
 def read_kred(info,basis,kred="KRED.DAT"):
-  eigsys = {}
+  charcount=0
+  eigsys = {
+      'nkpts_dir':None,
+      'recip_vecs':None,
+      'kpt_index':None,
+      'ikpt_iscmpx':None,
+      'kpt_weights':None,
+      'nspin':None,
+      'eigvals':None,
+      'eig_weights':None,
+      'kpt_file_start':{},
+    }
 
   kred = open(kred)
 #  print(kred.readline())
 #  kred=kred.read()
   kred_words = [] #kred.split()
   for lin in kred:
-    if lin=='          0          0          0':
+    charcount+=len(lin)
+    if lin=='          0          0          0\n':
       break # We'll do the eigenvectors one at a time to save memory.
     kred_words += lin.split()
+  eigsys['kpt_file_start'][(0,0,0)]=charcount
+
   cursor = 0
 
   # Number of k-points in each direction.
@@ -223,82 +237,92 @@ def read_kred(info,basis,kred="KRED.DAT"):
       .reshape(nikpts,eigsys['nspin'],nbands)
   cursor += nevals
 
-  # Read in eigenvectors at inequivilent kpoints. Can't do all kpoints because we 
-  # don't know if non-inequivilent kpoints are real or complex (without symmetry
-  # info)
+  # Read in eigenvectors at inequivilent kpoints.   
   nbands = int(round(nevals / nikpts / eigsys['nspin']))
   nkpts  = np.prod(eigsys['nkpts_dir'])
   nao = sum(basis['nao_shell'])
   ncpnts = int(nbands * nao)
+  linesperkpt = ncpnts//4 + int(ncpnts%4>0)
   kpt_coords   = []
+  new_kpt_coord=(0,0,0) # In all my tests the first kpoint is gamma.
   # Format: eigvecs[kpoint][<real/imag>][<spin up/spin down>]
   eigvecs = {}
-  for kpt in range(nkpts*eigsys['nspin']):
-    try:
-      new_kpt_coord = tuple([int(w) for w in kred_words[cursor:cursor+3]])
-    except IndexError: # End of file.
-      error("ERROR: KRED.DAT seems to have ended prematurely.\n" + \
-            "Didn't find all {0} kpoints.".format(nikpts),"IO Error")
-    cursor += 3
+  
+  # Here we simply mark where the eigenvectors are for later lookup.
+  for line in kred:
+    charcount+=len(line)
+    words=line.split()
+    if len(words)==3:
+      eigsys['kpt_file_start'][tuple([int(i) for i in words])]=charcount
 
-    # If new_kpt_coord is an inequivilent point...
-    if new_kpt_coord in ikpt_coords:
-      # If complex...
-      if eigsys['ikpt_iscmpx'][new_kpt_coord]:
-        #eig_k = np.array(kred_words[cursor:cursor+2*ncpnts],dtype=float)
-        eig_k = np.array([kred.readline().split() for i in range(2*ncpnts)],dtype=float)
-        #cursor += 2*ncpnts
-        eig_k = eig_k.reshape(ncpnts,2)
-        kpt_coords.append(new_kpt_coord)
-        if new_kpt_coord in eigvecs.keys():
-          eigvecs[new_kpt_coord]['real'].append(
-              eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)
-            )
-          eigvecs[new_kpt_coord]['imag'].append(
-              eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)
-            )
-        else:
-          eigvecs[new_kpt_coord] = {}
-          eigvecs[new_kpt_coord]['real'] = \
-            [eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)]
-          eigvecs[new_kpt_coord]['imag'] = \
-            [eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)]
-      else: # ...else real.
-        eig_k = np.array(kred_words[cursor:cursor+ncpnts],dtype=float)
-        cursor += ncpnts
-        kpt_coords.append(new_kpt_coord)
-        if new_kpt_coord in eigvecs.keys():
-          eigvecs[new_kpt_coord]['real'].append(
-              eig_k.reshape(int(round(ncpnts/nao)),nao)
-            )
-          eigvecs[new_kpt_coord]['imag'].append(
-              np.zeros((int(round(ncpnts/nao)),nao))
-            ) # Not efficient, but safe.
-        else:
-          eigvecs[new_kpt_coord] = {}
-          eigvecs[new_kpt_coord]['real'] = \
-            [eig_k.reshape(int(round(ncpnts/nao)),nao)]
-          eigvecs[new_kpt_coord]['imag'] = \
-            [np.zeros((int(round(ncpnts/nao)),nao))]
-    else: # ...else, skip.
-      skip = True
-      while skip:
-        first=kred.readline().split[0]
-        try: # If there's an int, we're at next kpoint.
-          int(first)
-          skip = False
-        except ValueError: # Keep skipping.
-          cursor += ncpnts
-        except IndexError: # End of file.
-          skip = False
-          break
+  #for kpt in range(nkpts*eigsys['nspin']):
+  #  try:
+  #    new_kpt_coord = tuple([int(w) for w in kred_words[cursor:cursor+3]])
+  #  except IndexError: # End of file.
+  #    error("ERROR: KRED.DAT seems to have ended prematurely.\n" + \
+  #          "Didn't find all {0} kpoints.".format(nikpts),"IO Error")
+  #  cursor += 3
 
-  # It's probably true that kpt_coords == ikpt_coords, with repitition for spin
-  # up and spin down, because we only read in inequivilent kpoints. However,
-  # ordering might be different, and the ordering is correct for kpt_coords.
-  # If there are bugs, this might be a source.
-  eigsys['kpt_coords'] = ikpt_coords # kpt_coords
-  eigsys['eigvecs'] = eigvecs
+  #  # If new_kpt_coord is an inequivilent point...
+  #  if new_kpt_coord in ikpt_coords:
+  #    # If complex...
+  #    if eigsys['ikpt_iscmpx'][new_kpt_coord]:
+  #      print(kred.readline())
+  #      assert 0
+  #      #eig_k = np.array(kred_words[cursor:cursor+2*ncpnts],dtype=float)
+  #      eig_k = np.array([kred.readline().split() for i in range(2*linesperkpt)],dtype=float)
+  #      #cursor += 2*ncpnts
+  #      eig_k = eig_k.reshape(ncpnts,2)
+  #      kpt_coords.append(new_kpt_coord)
+  #      if new_kpt_coord in eigvecs.keys():
+  #        eigvecs[new_kpt_coord]['real'].append(
+  #            eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)
+  #          )
+  #        eigvecs[new_kpt_coord]['imag'].append(
+  #            eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)
+  #          )
+  #      else:
+  #        eigvecs[new_kpt_coord] = {}
+  #        eigvecs[new_kpt_coord]['real'] = \
+  #          [eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)]
+  #        eigvecs[new_kpt_coord]['imag'] = \
+  #          [eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)]
+  #    else: # ...else real.
+  #      #eig_k = np.array(kred_words[cursor:cursor+ncpnts],dtype=float)
+  #      eig_k = np.array([kred.readline().split() for i in range(linesperkpt)],dtype=float)
+  #      #cursor += ncpnts
+  #      kpt_coords.append(new_kpt_coord)
+  #      if new_kpt_coord in eigvecs.keys():
+  #        eigvecs[new_kpt_coord]['real'].append(
+  #            eig_k.reshape(int(round(ncpnts/nao)),nao)
+  #          )
+  #        eigvecs[new_kpt_coord]['imag'].append(
+  #            np.zeros((int(round(ncpnts/nao)),nao))
+  #          ) # Not efficient, but safe.
+  #      else:
+  #        eigvecs[new_kpt_coord] = {}
+  #        eigvecs[new_kpt_coord]['real'] = \
+  #          [eig_k.reshape(int(round(ncpnts/nao)),nao)]
+  #        eigvecs[new_kpt_coord]['imag'] = \
+  #          [np.zeros((int(round(ncpnts/nao)),nao))]
+  #  else: # ...else, skip.
+  #    skip = True
+  #    while skip:
+  #      try: # If there's an int, we're at next kpoint.
+  #        int(kred.readline().split()[0]first)
+  #        skip = False
+  #      except ValueError: # Keep skipping.
+  #        cursor += ncpnts
+  #      except IndexError: # End of file.
+  #        skip = False
+  #        break
+
+  ## It's probably true that kpt_coords == ikpt_coords, with repitition for spin
+  ## up and spin down, because we only read in inequivilent kpoints. However,
+  ## ordering might be different, and the ordering is correct for kpt_coords.
+  ## If there are bugs, this might be a source.
+  #eigsys['kpt_coords'] = ikpt_coords # kpt_coords
+  #eigsys['eigvecs'] = eigvecs
 
   return eigsys
 
