@@ -181,6 +181,8 @@ def read_kred(info,basis,kred="KRED.DAT"):
 #  kred=kred.read()
   kred_words = [] #kred.split()
   for lin in kred:
+    if lin=='          0          0          0':
+      break # We'll do the eigenvectors one at a time to save memory.
     kred_words += lin.split()
   cursor = 0
 
@@ -243,8 +245,9 @@ def read_kred(info,basis,kred="KRED.DAT"):
     if new_kpt_coord in ikpt_coords:
       # If complex...
       if eigsys['ikpt_iscmpx'][new_kpt_coord]:
-        eig_k = np.array(kred_words[cursor:cursor+2*ncpnts],dtype=float)
-        cursor += 2*ncpnts
+        #eig_k = np.array(kred_words[cursor:cursor+2*ncpnts],dtype=float)
+        eig_k = np.array([kred.readline().split() for i in range(2*ncpnts)],dtype=float)
+        #cursor += 2*ncpnts
         eig_k = eig_k.reshape(ncpnts,2)
         kpt_coords.append(new_kpt_coord)
         if new_kpt_coord in eigvecs.keys():
@@ -280,8 +283,9 @@ def read_kred(info,basis,kred="KRED.DAT"):
     else: # ...else, skip.
       skip = True
       while skip:
+        first=kred.readline().split[0]
         try: # If there's an int, we're at next kpoint.
-          int(kred_words[cursor])
+          int(first)
           skip = False
         except ValueError: # Keep skipping.
           cursor += ncpnts
