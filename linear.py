@@ -107,6 +107,8 @@ class LinearReader:
     Returns:
       bool: If self.output are within error tolerances.
     '''
+    if len(self.output)==0:
+      return False
     if len(self.output['energy_trace']) < self.minsteps:
       print(self.__class__.__name__,"Linear optimize incomplete: number of steps (%f) less than minimum (%f)"%\
           (len(self.output['energy_trace']),self.minsteps))
