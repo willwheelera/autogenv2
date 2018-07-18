@@ -214,7 +214,7 @@ class PySCFPBCWriter:
     self.direct_scf_tol=1e-7
     self.pyscf_path=[]
     self.spin=0
-    self.gmesh=[4,4,4]
+    self.gmesh=None
     self.xyz=""
     self.latticevec=""
     self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
