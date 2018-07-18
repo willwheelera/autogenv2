@@ -321,7 +321,7 @@ class PySCFPBCWriter:
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "gs="+str(self.gmesh)+",",
+        "mesh="+str(self.gmesh)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
         "precision=%s"%self.cell_precision,
