@@ -11,10 +11,14 @@ from linear import LinearWriter,LinearReader
 from dmc import DMCWriter,DMCReader
 from trialfunc import SlaterJastrow
 from autorunner import RunnerPBS
+from pickle import load
 import numpy as np
 
+# TODO 
+# Dmc jobs aren't saving their queueid and are getting run multiple times, I think.
+
 ###################################################################################################################
-# Individual tests.
+# Individual test definitions.
 def h2_crystal_equil_test():
   jobs=[]
 
@@ -319,7 +323,7 @@ def mno_test():
   return jobs
 
 ###################################################################################################################
-# Test suites
+# Test suite definitions.
 def quick_crystal():
   ''' Fast-running tests of main crystal features. '''
   jobs=[]
@@ -359,7 +363,10 @@ def thorough_pyscf():
   You should probably run the quick tests before running these.'''
   return [] # TODO
 
+###################################################################################################################
+# Test operations
 def run_tests():
+  ''' Generate data using current generation of autogen.'''
   jobs=[]
 
   # Tests that are run.
@@ -368,5 +375,132 @@ def run_tests():
   for job in jobs:
     job.nextstep()
 
+def check_tests(reffn='refs.json'):
+  ''' Check the results of run_tests with reference data. '''
+  from json import load
+  jobs=[]
+  report=[]
+
+  # Tests that are compared to reference data.
+  jobs+=quick_crystal()
+
+  with open('refs.json','r') as inpf:
+    refs=load(inpf)
+
+  for job in jobs:
+    jobtype=job.__class__.__name__
+    if jobtype=='CrystalManager':
+      issame=compare_crystal(job,refs[job.path+job.name])
+    elif jobtype=='QWalkManager':
+      issame=compare_qwalk(job,refs[job.path+job.name])
+    else:
+      raise NotImplementedError("No routine for checking %s results yet"%jobtype)
+
+    if not issame:
+      report.append("%s: jobs differ more than tolerance, or else aren't run yet."%(job.path+job.name))
+
+  print("#######################################")
+  print("### Results of tests ##################" )
+  print("%d jobs failed to match reference."%len(report))
+  print('\n'.join(report))
+
+def compare_crystal(job,ref):
+  ''' Make sure two crystal jobs have the same results within machine precision.
+  Args:
+    job (Manager): What you'd like to check.
+    ref (dict): Reference data.
+  '''
+  issame=False
+
+  job.collect()
+
+  issame=abs(job.creader.output['total_energy']-ref['total_energy'])<1e-15
+
+  return issame
+
+def compare_qwalk(job,ref,nsigma=3):
+  ''' Make sure two qwalk jobs have the same results within error.
+  Args:
+    job (Manager): What you'd like to check. 
+    ref (dict): Reference data.
+    nsigma (float): Number of standard devations to allow before test declairs the results are different.
+  '''
+  issame=False
+
+  job.collect()
+
+  try:
+    issame=abs(job.reader.output['total_energy'] - ref['total_energy']) < \
+        nsigma*(job.reader.output['total_energy_err']**2 + ref['total_energy_err']**2)**0.5
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  try:
+    issame=abs(job.reader.output['properties']['total_energy']['value'][0] - ref['total_energy']) < \
+        nsigma*(job.reader.output['properties']['total_energy']['error'][0]**2 + ref['total_energy_err']**2)**0.5
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  try:
+    issame=abs(job.reader.output['sigma'] - ref['sigma']) < \
+        ref['sigma'] # Not quite right, but will catch really bad runs.
+  except KeyError:
+    pass # probably not the right QMC type.
+
+  return issame
+
+def update_refs(reffn='refs.json'):
+  ''' Update the references file.
+  Args:
+    reffn: Reference file name that will be produced.
+  '''
+  from json import dump
+  jobs=[]
+  refs={}
+  jobs+=quick_crystal()
+
+  for job in jobs:
+    refs[job.path+job.name]=grab_job_ref(job)
+
+  with open(reffn,'w') as outf:
+    dump(refs,outf)
+
+def grab_job_ref(job):
+  ref={}
+  job.collect()
+
+  try:
+    reader=job.reader
+  except AttributeError:
+    reader=job.creader
+
+  try:
+    ref['total_energy'] = reader.output['total_energy']
+  except KeyError:
+    try:
+      ref['total_energy'] =reader.output['properties']['total_energy']['value'][0]
+    except KeyError:
+      pass
+
+  try:
+    ref['total_energy_err']=reader.output['total_energy_err']
+  except KeyError:
+    try:
+      ref['total_energy_err']=reader.output['properties']['total_energy']['error'][0]
+    except KeyError:
+      pass
+
+  try:
+    ref['sigma']=reader.output['sigma']
+  except KeyError:
+    try:
+      ref['sigma']=reader.output['properties']['total_energy']['sigma'][0]
+    except KeyError:
+      pass
+
+  return ref
+
 if __name__=='__main__':
   run_tests()
+  check_tests()
+  #update_refs()
