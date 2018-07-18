@@ -185,6 +185,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
       'eigvals':None,
       'eig_weights':None,
       'kpt_file_start':{},
+      'kred':kred
     }
 
   kred = open(kred)
@@ -237,27 +238,21 @@ def read_kred(info,basis,kred="KRED.DAT"):
       .reshape(nikpts,eigsys['nspin'],nbands)
   cursor += nevals
 
-  # Read in eigenvectors at inequivilent kpoints.   
-  nbands = int(round(nevals / nikpts / eigsys['nspin']))
-  nkpts  = np.prod(eigsys['nkpts_dir'])
-  nao = sum(basis['nao_shell'])
-  ncpnts = int(nbands * nao)
-  linesperkpt = ncpnts//4 + int(ncpnts%4>0)
-  kpt_coords   = []
-  new_kpt_coord=(0,0,0) # In all my tests the first kpoint is gamma.
-  # Format: eigvecs[kpoint][<real/imag>][<spin up/spin down>]
-  eigvecs = {}
+  # Information about eigenvectors.
+  #nkpts  = np.prod(eigsys['nkpts_dir'])
+  eigsys['nao'] = sum(basis['nao_shell'])
+  eigsys['nbands'] = int(round(nevals / nikpts / eigsys['nspin']))
   
   # Here we simply mark where the eigenvectors are for later lookup.
   for line in kred:
-    charcount+=len(line)
-    words=line.split()
-    if len(words)==3:
-      eigsys['kpt_file_start'][tuple([int(i) for i in words])]=charcount
+    llen=len(line)
+    charcount+=llen
+    if llen==34:
+      eigsys['kpt_file_start'][tuple([int(i) for i in line.split()])]=charcount
 
   #for kpt in range(nkpts*eigsys['nspin']):
   #  try:
-  #    new_kpt_coord = tuple([int(w) for w in kred_words[cursor:cursor+3]])
+  #    new_kpt_coord = tuple([int(w) for w in kred_words[cursor:cursor+2]])
   #  except IndexError: # End of file.
   #    error("ERROR: KRED.DAT seems to have ended prematurely.\n" + \
   #          "Didn't find all {0} kpoints.".format(nikpts),"IO Error")
@@ -321,10 +316,36 @@ def read_kred(info,basis,kred="KRED.DAT"):
   ## up and spin down, because we only read in inequivilent kpoints. However,
   ## ordering might be different, and the ordering is correct for kpt_coords.
   ## If there are bugs, this might be a source.
-  #eigsys['kpt_coords'] = ikpt_coords # kpt_coords
+  eigsys['kpt_coords'] = ikpt_coords # kpt_coords
   #eigsys['eigvecs'] = eigvecs
 
   return eigsys
+
+###############################################################################
+# Look up an eigenvector from KRED.DAT.
+def eigvec_lookup(kpt,eigsys):
+  ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.
+  Args:
+    kpt (tuple of int): Kpoint coordinates.
+    eigsys (dict): data from read_kred. 
+    iscomplex (bool): Is the kpoint complex.
+  Returns:
+    array: eigenstate indexed by [band, ao]
+  '''
+  ncpnts = int(eigsys['nbands']* eigsys['nao'])
+  if eigsys['ikpt_iscmpx'][kpt]:
+    ncpnts *= 2
+  linesperkpt = ncpnts//4 + int(ncpnts%4>0)
+
+  kredf = open(eigsys['kred'],'r')
+  kredf.seek(eigsys['kpt_file_start'][kpt])
+  eigvec = np.array([line.split() for li,line in enumerate(kredf) if li < linesperkpt],dtype=float)
+
+  if eigsys['ikpt_iscmpx'][kpt]:
+    eigvec=eigvec.reshape(ncpnts//2,2)
+    eigvec=eigvec[:,0] + eigvec[:,1]*1j # complexify.
+
+  return eigvec.reshape(eigsys['nbands'],eigsys['nao'])
 
 ###############################################################################
 # Reads total spin from output file. 
@@ -441,7 +462,7 @@ def write_orbplot(basis,eigsys,kpt,outfn,orbfn,basisfn,sysfn,maxmo_spin=-1):
 ###############################################################################
 # f orbital normalizations are from 
 # <http://winter.group.shef.ac.uk/orbitron/AOs/4f/equations.html>
-def normalize_eigvec(eigsys,basis,kpt):
+def normalize_eigvec(eigvec,basis):
   snorm = 1./(4.*np.pi)**0.5
   pnorm = snorm*(3.)**.5
   dnorms = [
@@ -483,15 +504,13 @@ def normalize_eigvec(eigsys,basis,kpt):
     error("sp orbtials not implemented in normalize_eigvec(...)","Not implemented")
 
   for part in ['real','imag']:
-    for spin in range(eigsys['nspin']):
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==0] *= snorm
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==2] *= pnorm
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==3] *= dnorms
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==4] *= fnorms
-  return None
+    eigvec[:,ao_type==0] *= snorm
+    eigvec[:,ao_type==2] *= pnorm
+    eigvec[:,ao_type==3] *= dnorms
+    eigvec[:,ao_type==4] *= fnorms
+  return eigvec
       
 ###############################################################################
-# This assumes you have called normalize_eigvec first! TODO better coding style?
 def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
   outf=open(outfn,'w')
   if maxmo_spin < 0:
@@ -815,7 +834,7 @@ def convert_crystal(
         basisfn=files['basis'],
         sysfn=files['sys'][kidx],
         maxmo_spin=maxmo_spin)
-    normalize_eigvec(eigsys,basis,kpt)
+    assert 0, "write_orb not implemented in memory saving format."
     write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
     write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
 
