@@ -93,15 +93,24 @@ def convert_crystal(
         basisfn=files['basis'],
         sysfn=files['sys'][kidx],
         maxmo_spin=maxmo_spin)
-    normalize_eigvec(eigsys,basis,kpt)
     write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
     write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
 
   return files
 
 ###############################################################################
-# Reads in the geometry, basis, and pseudopotential from GRED.DAT.
 def read_gred(gred="GRED.DAT"):
+  ''' Read the structure, basis, and pseudopotential from the GRED.DAT file.
+  Args:
+    gred (str): path to GRED.DAT file.
+  Returns:
+    tuple: (info,lat_parm,ions,basis,pseudo). Each are dictionaries with the following infomation:
+      info (information useful for KRED.DAT),
+      lat_parm (lattice parameters), 
+      ions (ion positions and charges), 
+      basis (basis set definition), 
+      pseudo (pseudopotential defintion).
+  '''
   lat_parm = {}
   ions = {}
   basis = {}
@@ -257,12 +266,39 @@ def read_gred(gred="GRED.DAT"):
 ###############################################################################
 # Reads in kpoints and eigen{values,vectors} from KRED.DAT.
 def read_kred(info,basis,kred="KRED.DAT"):
-  eigsys = {}
+  ''' Read the KRED and provide information about the CRYSTAL solutions. 
+  Args:
+    info (dict): should be produced by read_gred.
+    basis (dict): also from read_gred, the basis set info.
+    kred (str): path to KRED.DAT.
+  Returns:
+    eigsys (dict): orbitals from the SCF calculation. 
+  '''
+
+  charcount=0
+  eigsys = {
+      'nkpts_dir':None,
+      'recip_vecs':None,
+      'kpt_index':None,
+      'ikpt_iscmpx':None,
+      'kpt_weights':None,
+      'nspin':None,
+      'eigvals':None,
+      'eig_weights':None,
+      'kpt_file_start':{},
+      'kred':kred
+    }
 
   kred = open(kred)
   kred_words = []
   for lin in kred:
+    charcount+=len(lin)
+    # Stop at eigenvectors. The second condition is to avoid stopping early for gamma-only calculations.
+    if lin=='          0          0          0\n' and len(kred_words)>13:
+      break # We'll do the eigenvectors one at a time to save memory.
     kred_words += lin.split()
+  eigsys['kpt_file_start'][(0,0,0)]=[charcount]
+
   cursor = 0
 
   # Number of k-points in each direction.
@@ -302,88 +338,72 @@ def read_kred(info,basis,kred="KRED.DAT"):
       .reshape(nikpts,eigsys['nspin'],nbands)
   cursor += nevals
 
-  # Read in eigenvectors at inequivilent kpoints. Can't do all kpoints because we 
-  # don't know if non-inequivilent kpoints are real or complex (without symmetry
-  # info)
-  nbands = int(round(nevals / nikpts / eigsys['nspin']))
-  nkpts  = np.prod(eigsys['nkpts_dir'])
-  nao = sum(basis['nao_shell'])
-  ncpnts = int(nbands * nao)
-  kpt_coords   = []
-  # Format: eigvecs[kpoint][<real/imag>][<spin up/spin down>]
-  eigvecs = {}
-  for kpt in range(nkpts*eigsys['nspin']):
-    try:
-      new_kpt_coord = tuple([int(w) for w in kred_words[cursor:cursor+3]])
-    except IndexError: # End of file.
-      error("ERROR: KRED.DAT seems to have ended prematurely.\n" + \
-            "Didn't find all {0} kpoints.".format(nikpts),"IO Error")
-    cursor += 3
+  # Information about eigenvectors.
+  #nkpts  = np.prod(eigsys['nkpts_dir'])
+  eigsys['nao'] = sum(basis['nao_shell'])
+  eigsys['nbands'] = int(round(nevals / nikpts / eigsys['nspin']))
+  
+  # Here we simply mark where the eigenvectors are for later lookup.
+  for line in kred:
+    llen=len(line)
+    charcount+=llen
+    if llen==34:
+      kpt=tuple([int(i) for i in line.split()])
+      if kpt in eigsys['kpt_file_start']:
+        eigsys['kpt_file_start'][kpt].append(charcount)
+      else:
+        eigsys['kpt_file_start'][kpt] = [charcount]
 
-    # If new_kpt_coord is an inequivilent point...
-    if new_kpt_coord in ikpt_coords:
-      # If complex...
-      if eigsys['ikpt_iscmpx'][new_kpt_coord]:
-        eig_k = np.array(kred_words[cursor:cursor+2*ncpnts],dtype=float)
-        cursor += 2*ncpnts
-        eig_k = eig_k.reshape(ncpnts,2)
-        kpt_coords.append(new_kpt_coord)
-        if new_kpt_coord in eigvecs.keys():
-          eigvecs[new_kpt_coord]['real'].append(
-              eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)
-            )
-          eigvecs[new_kpt_coord]['imag'].append(
-              eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)
-            )
-        else:
-          eigvecs[new_kpt_coord] = {}
-          eigvecs[new_kpt_coord]['real'] = \
-            [eig_k[:,0].reshape(int(round(ncpnts/nao)),nao)]
-          eigvecs[new_kpt_coord]['imag'] = \
-            [eig_k[:,1].reshape(int(round(ncpnts/nao)),nao)]
-      else: # ...else real.
-        eig_k = np.array(kred_words[cursor:cursor+ncpnts],dtype=float)
-        cursor += ncpnts
-        kpt_coords.append(new_kpt_coord)
-        if new_kpt_coord in eigvecs.keys():
-          eigvecs[new_kpt_coord]['real'].append(
-              eig_k.reshape(int(round(ncpnts/nao)),nao)
-            )
-          eigvecs[new_kpt_coord]['imag'].append(
-              np.zeros((int(round(ncpnts/nao)),nao))
-            ) # Not efficient, but safe.
-        else:
-          eigvecs[new_kpt_coord] = {}
-          eigvecs[new_kpt_coord]['real'] = \
-            [eig_k.reshape(int(round(ncpnts/nao)),nao)]
-          eigvecs[new_kpt_coord]['imag'] = \
-            [np.zeros((int(round(ncpnts/nao)),nao))]
-    else: # ...else, skip.
-      skip = True
-      while skip:
-        try: # If there's an int, we're at next kpoint.
-          int(kred_words[cursor])
-          skip = False
-        except ValueError: # Keep skipping.
-          cursor += ncpnts
-        except IndexError: # End of file.
-          skip = False
-          break
-
-  # It's probably true that kpt_coords == ikpt_coords, with repitition for spin
-  # up and spin down, because we only read in inequivilent kpoints. However,
-  # ordering might be different, and the ordering is correct for kpt_coords.
-  # If there are bugs, this might be a source.
+  ## It's probably true that kpt_coords == ikpt_coords, with repitition for spin
+  ## up and spin down, because we only read in inequivilent kpoints. However,
+  ## ordering might be different, and the ordering is correct for kpt_coords.
+  ## If there are bugs, this might be a source.
   eigsys['kpt_coords'] = ikpt_coords # kpt_coords
-  eigsys['eigvecs'] = eigvecs
+  #eigsys['eigvecs'] = eigvecs
 
   return eigsys
 
 ###############################################################################
-# Reads total spin from output file. 
-# TODO Is there a way around this? Yes.
-# Alternatively, this can read the CRYSTAL output file and still works!
+# Look up an eigenvector from KRED.DAT.
+# TODO: Further reduction in memory usage can be had by specifying nvirtual here.
+def eigvec_lookup(kpt,eigsys,spin=0):
+  ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.
+  Args:
+    kpt (tuple of int): Kpoint coordinates.
+    eigsys (dict): data from read_kred. 
+    iscomplex (bool): Is the kpoint complex.
+    spin (int): desired spin component. 
+  Returns:
+    array: eigenstate indexed by [band, ao]
+  '''
+  ncpnts = int(eigsys['nbands']* eigsys['nao'])
+  if eigsys['ikpt_iscmpx'][kpt]:
+    ncpnts *= 2
+  linesperkpt = ncpnts//4 + int(ncpnts%4>0)
+
+  kredf = open(eigsys['kred'],'r')
+  kredf.seek(eigsys['kpt_file_start'][kpt][spin])
+  eigvec=[]
+  for li,line in enumerate(kredf):
+    if li==linesperkpt: break
+    eigvec+=line.split()
+
+  eigvec = np.array(eigvec,dtype=float)
+
+  if eigsys['ikpt_iscmpx'][kpt]:
+    eigvec=eigvec.reshape(ncpnts//2,2)
+    eigvec=eigvec[:,0] + eigvec[:,1]*1j # complexify.
+
+  return eigvec.reshape(eigsys['nbands'],eigsys['nao'])
+
+###############################################################################
 def read_outputfile(fname = "prop.in.o"):
+  ''' Reads total spin from output file. 
+  Args: 
+    fname (str): either crystal or properties output.
+  Returns:
+    int: spin of the system.
+  '''
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:
@@ -494,7 +514,7 @@ def write_orbplot(basis,eigsys,kpt,outfn,orbfn,basisfn,sysfn,maxmo_spin=-1):
 ###############################################################################
 # f orbital normalizations are from 
 # <http://winter.group.shef.ac.uk/orbitron/AOs/4f/equations.html>
-def normalize_eigvec(eigsys,basis,kpt):
+def normalize_eigvec(eigvec,basis):
   snorm = 1./(4.*np.pi)**0.5
   pnorm = snorm*(3.)**.5
   dnorms = [
@@ -535,23 +555,20 @@ def normalize_eigvec(eigsys,basis,kpt):
   if any(ao_type==1):
     error("sp orbtials not implemented in normalize_eigvec(...)","Not implemented")
 
-  for part in ['real','imag']:
-    for spin in range(eigsys['nspin']):
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==0] *= snorm
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==2] *= pnorm
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==3] *= dnorms
-      eigsys['eigvecs'][kpt][part][spin][:,ao_type==4] *= fnorms
-  return None
+  eigvec[:,ao_type==0] *= snorm
+  eigvec[:,ao_type==2] *= pnorm
+  eigvec[:,ao_type==3] *= dnorms
+  eigvec[:,ao_type==4] *= fnorms
+
+  return eigvec
       
 ###############################################################################
-# This assumes you have called normalize_eigvec first! TODO better coding style?
 def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
   outf=open(outfn,'w')
   if maxmo_spin < 0:
     maxmo_spin=basis['nmo']
 
-  eigvecs_real = eigsys['eigvecs'][kpt]['real']
-  eigvecs_imag = eigsys['eigvecs'][kpt]['imag']
+  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(eigsys['nspin'])]
   atidxs = np.unique(basis['atom_shell'])-1
   nao_atom = np.zeros(atidxs.size,dtype=int)
   for shidx in range(len(basis['nao_shell'])):
@@ -565,19 +582,18 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigreal_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_real]
-  eigimag_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_imag]
+  eigvec_flat = [e[0:maxmo_spin].flatten() for s in range(eigsys['nspin']) for e in eigvecs[s]]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
-    for eigr,eigi in zip(eigreal_flat,eigimag_flat):
-      for r,i in zip(eigr,eigi):
+    for eigv in eigvec_flat: #zip(eigreal_flat,eigimag_flat):
+      for r,i in zip(eigv.real,eigv.imag):
         outf.write("({:<.12e},{:<.12e}) "\
             .format(r,i))
         print_cnt+=1
         if print_cnt%5==0: outf.write("\n")
   else: #Real coefficients
-    for eigr in eigreal_flat:
+    for eigr in eigvec_flat:
       for r in eigr:
         outf.write("{:< 15.12e} ".format(r))
         print_cnt+=1
