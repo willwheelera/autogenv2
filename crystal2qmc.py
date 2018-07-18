@@ -332,6 +332,7 @@ def eigvec_lookup(kpt,eigsys,spin=0):
     kpt (tuple of int): Kpoint coordinates.
     eigsys (dict): data from read_kred. 
     iscomplex (bool): Is the kpoint complex.
+    spin (int): desired spin component. 
   Returns:
     array: eigenstate indexed by [band, ao]
   '''
@@ -522,11 +523,7 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
   if maxmo_spin < 0:
     maxmo_spin=basis['nmo']
 
-  #eigvecs_real = eigsys['eigvecs'][kpt]['real']
-  #eigvecs_imag = eigsys['eigvecs'][kpt]['imag']
-  # TODO generalize no spin.
-  nspin=2
-  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(nspin)]
+  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(eigsys['nspin'])]
   atidxs = np.unique(basis['atom_shell'])-1
   nao_atom = np.zeros(atidxs.size,dtype=int)
   for shidx in range(len(basis['nao_shell'])):
@@ -540,7 +537,7 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigvec_flat = [e[0:maxmo_spin].flatten() for s in range(nspin) for e in eigvecs[s]]
+  eigvec_flat = [e[0:maxmo_spin].flatten() for s in range(eigsys['nspin']) for e in eigvecs[s]]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
