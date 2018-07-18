@@ -177,9 +177,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
   eigsys = {}
 
   kred = open(kred)
-#  print(kred.readline())
-#  kred=kred.read()
-  kred_words = [] #kred.split()
+  kred_words = []
   for lin in kred:
     kred_words += lin.split()
   cursor = 0
