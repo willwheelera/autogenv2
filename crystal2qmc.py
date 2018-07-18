@@ -1,3 +1,8 @@
+''' 
+Routines for extracting crystal parameters and results and writing them into qwalk input files.
+A casual user would be interested in convert_crystal. 
+'''
+
 from __future__ import division,print_function
 import numpy as np
 import sys
@@ -15,6 +20,7 @@ periodic_table = [
   "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
   "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
 ]
+
 ###############################################################################
 # Convenince method
 def convert_crystal(
@@ -54,10 +60,6 @@ def convert_crystal(
   eigsys['ndn'] = int(round(0.5 * (basis['ntot'] - eigsys['totspin'])))
 
   maxmo_spin=min(max(eigsys['nup'],eigsys['ndn'])+nvirtual,basis['nmo'])
-  if (np.array(eigsys['kpt_coords']) >= 10).any():
-    print("Cannot use coord kpoint format when SHRINK > 10.")
-    print("Falling back on int format (old style).")
-    kfmt = 'int'
 
   #  All the files that will get produced.
   files={
