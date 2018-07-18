@@ -323,6 +323,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
 
 ###############################################################################
 # Look up an eigenvector from KRED.DAT.
+# TODO: Further reduction in memory can be had by specifying nvirtual here.
 def eigvec_lookup(kpt,eigsys):
   ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.
   Args:
@@ -349,8 +350,6 @@ def eigvec_lookup(kpt,eigsys):
 
 ###############################################################################
 # Reads total spin from output file. 
-# TODO Is there a way around this? Yes.
-# Alternatively, this can read the CRYSTAL output file and still works!
 def read_outputfile(fname = "prop.in.o"):
   fin = open(fname,'r')
   for line in fin:
@@ -503,11 +502,11 @@ def normalize_eigvec(eigvec,basis):
   if any(ao_type==1):
     error("sp orbtials not implemented in normalize_eigvec(...)","Not implemented")
 
-  for part in ['real','imag']:
-    eigvec[:,ao_type==0] *= snorm
-    eigvec[:,ao_type==2] *= pnorm
-    eigvec[:,ao_type==3] *= dnorms
-    eigvec[:,ao_type==4] *= fnorms
+  eigvec[:,ao_type==0] *= snorm
+  eigvec[:,ao_type==2] *= pnorm
+  eigvec[:,ao_type==3] *= dnorms
+  eigvec[:,ao_type==4] *= fnorms
+
   return eigvec
       
 ###############################################################################
@@ -516,8 +515,9 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
   if maxmo_spin < 0:
     maxmo_spin=basis['nmo']
 
-  eigvecs_real = eigsys['eigvecs'][kpt]['real']
-  eigvecs_imag = eigsys['eigvecs'][kpt]['imag']
+  #eigvecs_real = eigsys['eigvecs'][kpt]['real']
+  #eigvecs_imag = eigsys['eigvecs'][kpt]['imag']
+  eigvecs=normalize_eigvec(eigvec_lookup(kpt,eigsys),basis)
   atidxs = np.unique(basis['atom_shell'])-1
   nao_atom = np.zeros(atidxs.size,dtype=int)
   for shidx in range(len(basis['nao_shell'])):
@@ -531,19 +531,18 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigreal_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_real]
-  eigimag_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_imag]
+  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
-    for eigr,eigi in zip(eigreal_flat,eigimag_flat):
-      for r,i in zip(eigr,eigi):
+    for eigv in eigvec_flat: #zip(eigreal_flat,eigimag_flat):
+      for r,i in zip(eigv.real,eigv.imag):
         outf.write("({:<.12e},{:<.12e}) "\
             .format(r,i))
         print_cnt+=1
         if print_cnt%5==0: outf.write("\n")
   else: #Real coefficients
-    for eigr in eigreal_flat:
+    for eigr in eigvec_flat:
       for r in eigr:
         outf.write("{:< 15.12e} ".format(r))
         print_cnt+=1
@@ -834,7 +833,6 @@ def convert_crystal(
         basisfn=files['basis'],
         sysfn=files['sys'][kidx],
         maxmo_spin=maxmo_spin)
-    assert 0, "write_orb not implemented in memory saving format."
     write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
     write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
 
