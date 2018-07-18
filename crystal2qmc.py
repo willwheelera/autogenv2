@@ -93,15 +93,24 @@ def convert_crystal(
         basisfn=files['basis'],
         sysfn=files['sys'][kidx],
         maxmo_spin=maxmo_spin)
-    normalize_eigvec(eigsys,basis,kpt)
     write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
     write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
 
   return files
 
 ###############################################################################
-# Reads in the geometry, basis, and pseudopotential from GRED.DAT.
 def read_gred(gred="GRED.DAT"):
+  ''' Read the structure, basis, and pseudopotential from the GRED.DAT file.
+  Args:
+    gred (str): path to GRED.DAT file.
+  Returns:
+    tuple: (info,lat_parm,ions,basis,pseudo). Each are dictionaries with the following infomation:
+      info (information useful for KRED.DAT),
+      lat_parm (lattice parameters), 
+      ions (ion positions and charges), 
+      basis (basis set definition), 
+      pseudo (pseudopotential defintion).
+  '''
   lat_parm = {}
   ions = {}
   basis = {}
@@ -257,6 +266,15 @@ def read_gred(gred="GRED.DAT"):
 ###############################################################################
 # Reads in kpoints and eigen{values,vectors} from KRED.DAT.
 def read_kred(info,basis,kred="KRED.DAT"):
+  ''' Read the KRED and provide information about the CRYSTAL solutions. 
+  Args:
+    info (dict): should be produced by read_gred.
+    basis (dict): also from read_gred, the basis set info.
+    kred (str): path to KRED.DAT.
+  Returns:
+    eigsys (dict): orbitals from the SCF calculation. 
+  '''
+
   charcount=0
   eigsys = {
       'nkpts_dir':None,
@@ -440,8 +458,13 @@ def eigvec_lookup(kpt,eigsys,spin=0):
   return eigvec.reshape(eigsys['nbands'],eigsys['nao'])
 
 ###############################################################################
-# Reads total spin from output file. 
 def read_outputfile(fname = "prop.in.o"):
+  ''' Reads total spin from output file. 
+  Args: 
+    fname (str): either crystal or properties output.
+  Returns:
+    int: spin of the system.
+  '''
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:
