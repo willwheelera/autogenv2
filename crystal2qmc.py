@@ -195,7 +195,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
     if lin=='          0          0          0\n':
       break # We'll do the eigenvectors one at a time to save memory.
     kred_words += lin.split()
-  eigsys['kpt_file_start'][(0,0,0)]=charcount
+  eigsys['kpt_file_start'][(0,0,0)]=[charcount]
 
   cursor = 0
 
@@ -342,7 +342,12 @@ def eigvec_lookup(kpt,eigsys,spin=0):
 
   kredf = open(eigsys['kred'],'r')
   kredf.seek(eigsys['kpt_file_start'][kpt][spin])
-  eigvec = np.array([line.split() for li,line in enumerate(kredf) if li < linesperkpt],dtype=float)
+  eigvec=[]
+  for li,line in enumerate(kredf):
+    if li==linesperkpt: break
+    eigvec+=line.split()
+
+  eigvec = np.array(eigvec,dtype=float)
 
   if eigsys['ikpt_iscmpx'][kpt]:
     eigvec=eigvec.reshape(ncpnts//2,2)
@@ -535,7 +540,7 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs[s] for s in range(nspin)]
+  eigvec_flat = [e[0:maxmo_spin].flatten() for s in range(nspin) for e in eigvecs[s]]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
