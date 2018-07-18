@@ -326,7 +326,7 @@ class PySCFPBCWriter:
         "ke_cutoff="+str(self.ke_cutoff)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
-        "precision=%s"%self.cell_precision,
+        "precision=%s,"%self.cell_precision,
         "basis=basis,",
         "spin=%i,"%self.spin,
         "ecp='%s')"%self.ecp,
