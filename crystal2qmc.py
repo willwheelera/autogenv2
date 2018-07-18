@@ -1,3 +1,8 @@
+''' 
+Routines for extracting crystal parameters and results and writing them into qwalk input files.
+A casual user would be interested in convert_crystal. 
+'''
+
 from __future__ import division,print_function
 import numpy as np
 import sys
@@ -15,6 +20,84 @@ periodic_table = [
   "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
   "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
 ]
+
+###############################################################################
+# Convenince method
+def convert_crystal(
+    base="qwalk",
+    propoutfn="prop.in.o",
+    realonly=False,
+    nvirtual=50):
+  """
+  Uses rountines in this library to convert crystal files into qwalk files in one call.
+  Files are named by [base]_[kindex].sys etc.
+  Args:
+    base (str): see naming.
+    propoutfn (str): name of either crystal or properties output file.
+    realonly (bool): whether to only the real kpoints.
+    nvirtual (int): number of virtual orbtials to include in orbitals section.
+  Returns:
+    dict: files produced by this call.
+  """
+  # kfmt='coord' is probably a bad thing because it doesn't always work and can 
+  # lead to unexpected changes in file name conventions.
+
+  # keeps track of the files that get produced.
+  files={}
+
+  info, lat_parm, ions, basis, pseudo = read_gred()
+  eigsys = read_kred(info,basis)
+
+  if eigsys['nspin'] > 1:
+    eigsys['totspin'] = read_outputfile(propoutfn)
+  else:
+    eigsys['totspin'] = 0
+
+  # Useful quantities.
+  basis['ntot'] = int(round(sum(basis['charges'])))
+  basis['nmo']  = sum(basis['nao_shell']) # = nao
+  eigsys['nup'] = int(round(0.5 * (basis['ntot'] + eigsys['totspin'])))
+  eigsys['ndn'] = int(round(0.5 * (basis['ntot'] - eigsys['totspin'])))
+
+  maxmo_spin=min(max(eigsys['nup'],eigsys['ndn'])+nvirtual,basis['nmo'])
+
+  #  All the files that will get produced.
+  files={
+      'kpoints':{},
+      'basis':base+".basis",
+      'jastrow2':base+".jast2",
+      'orbplot':{},
+      'orb':{},
+      'sys':{},
+      'slater':{}
+    }
+  write_basis(basis,ions,files['basis'])
+  write_jast2(lat_parm,ions,files['jastrow2'])
+ 
+  for kpt in eigsys['kpt_coords']:
+    if eigsys['ikpt_iscmpx'][kpt] and realonly: continue
+    kidx=eigsys['kpt_index'][kpt]
+    files['kpoints'][kidx]=kpt
+    files['orbplot'][kidx]="%s_%d.plot"%(base,kidx)
+    files['slater'][kidx]="%s_%d.slater"%(base,kidx)
+    files['orb'][kidx]="%s_%d.orb"%(base,kidx)
+    files['sys'][kidx]="%s_%d.sys"%(base,kidx)
+    write_slater(basis,eigsys,kpt,
+        outfn=files['slater'][kidx],
+        orbfn=files['orb'][kidx],
+        basisfn=files['basis'],
+        maxmo_spin=maxmo_spin)
+    write_orbplot(basis,eigsys,kpt,
+        outfn=files['orbplot'][kidx],
+        orbfn=files['orb'][kidx],
+        basisfn=files['basis'],
+        sysfn=files['sys'][kidx],
+        maxmo_spin=maxmo_spin)
+    normalize_eigvec(eigsys,basis,kpt)
+    write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
+    write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
+
+  return files
 
 ###############################################################################
 # Reads in the geometry, basis, and pseudopotential from GRED.DAT.
@@ -714,82 +797,8 @@ def write_basis(basis,ions,outfn):
 
 ###############################################################################
 def write_moanalysis():
+  raise NotImplementedError()
   return None
-
-###############################################################################
-# Begin actual execution.
-# TODO test kfmt fallback.
-def convert_crystal(
-    base="qwalk",
-    propoutfn="prop.in.o",
-    kset='complex',
-    nvirtual=50):
-  """
-  Files are named by [base]_[kindex].sys etc.
-  """
-  # kfmt='coord' is probably a bad thing because it doesn't always work and can 
-  # lead to unexpected changes in file name conventions.
-
-  # keeps track of the files that get produced.
-  files={}
-
-  info, lat_parm, ions, basis, pseudo = read_gred()
-  eigsys = read_kred(info,basis)
-
-  if eigsys['nspin'] > 1:
-    eigsys['totspin'] = read_outputfile(propoutfn)
-  else:
-    eigsys['totspin'] = 0
-
-  # Useful quantities.
-  basis['ntot'] = int(round(sum(basis['charges'])))
-  basis['nmo']  = sum(basis['nao_shell']) # = nao
-  eigsys['nup'] = int(round(0.5 * (basis['ntot'] + eigsys['totspin'])))
-  eigsys['ndn'] = int(round(0.5 * (basis['ntot'] - eigsys['totspin'])))
-
-  maxmo_spin=min(max(eigsys['nup'],eigsys['ndn'])+nvirtual,basis['nmo'])
-  if (np.array(eigsys['kpt_coords']) >= 10).any():
-    print("Cannot use coord kpoint format when SHRINK > 10.")
-    print("Falling back on int format (old style).")
-    kfmt = 'int'
-
-  #  All the files that will get produced.
-  files={
-      'kpoints':{},
-      'basis':base+".basis",
-      'jastrow2':base+".jast2",
-      'orbplot':{},
-      'orb':{},
-      'sys':{},
-      'slater':{}
-    }
-  write_basis(basis,ions,files['basis'])
-  write_jast2(lat_parm,ions,files['jastrow2'])
- 
-  for kpt in eigsys['kpt_coords']:
-    if eigsys['ikpt_iscmpx'][kpt] and kset=='real': continue
-    kidx=eigsys['kpt_index'][kpt]
-    files['kpoints'][kidx]=kpt
-    files['orbplot'][kidx]="%s_%d.plot"%(base,kidx)
-    files['slater'][kidx]="%s_%d.slater"%(base,kidx)
-    files['orb'][kidx]="%s_%d.orb"%(base,kidx)
-    files['sys'][kidx]="%s_%d.sys"%(base,kidx)
-    write_slater(basis,eigsys,kpt,
-        outfn=files['slater'][kidx],
-        orbfn=files['orb'][kidx],
-        basisfn=files['basis'],
-        maxmo_spin=maxmo_spin)
-    write_orbplot(basis,eigsys,kpt,
-        outfn=files['orbplot'][kidx],
-        orbfn=files['orb'][kidx],
-        basisfn=files['basis'],
-        sysfn=files['sys'][kidx],
-        maxmo_spin=maxmo_spin)
-    normalize_eigvec(eigsys,basis,kpt)
-    write_orb(eigsys,basis,ions,kpt,files['orb'][kidx],maxmo_spin)
-    write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
-
-  return files
 
 if __name__ == "__main__":
   from argparse import ArgumentParser
@@ -798,8 +807,8 @@ if __name__ == "__main__":
       help="[='qw'] First part of string for file names.")
   parser.add_argument('-p','--propout',type=str,default='prop.in.o',
       help="[='prop.in.o'] Name of file containing net spin. Either crystal or properties stdout.")
-  parser.add_argument('-k','--kset',type=str,default='complex',
-      help="[='complex'] 'real' or 'complex' kpoints.")
+  parser.add_argument('-r','--real',type=bool,default=False,
+      help="[=False] Convert only real kpoints.")
   parser.add_argument('-v','--nvirtual',type=int,default=50,
       help="[=50] Number of unoccupied or virtual orbitals to allow access to.")
   args=parser.parse_args()
