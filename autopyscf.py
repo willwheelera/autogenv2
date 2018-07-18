@@ -214,7 +214,7 @@ class PySCFPBCWriter:
     self.direct_scf_tol=1e-7
     self.pyscf_path=[]
     self.spin=0
-    self.gmesh=[4,4,4]
+    self.gmesh=[4,4,4] #TODO make this default to not specify, and use kecutoff.
     self.xyz=""
     self.latticevec=""
     self.kpts=[2,2,2]
