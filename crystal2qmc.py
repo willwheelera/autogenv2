@@ -189,9 +189,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
     }
 
   kred = open(kred)
-#  print(kred.readline())
-#  kred=kred.read()
-  kred_words = [] #kred.split()
+  kred_words = []
   for lin in kred:
     charcount+=len(lin)
     if lin=='          0          0          0\n':
@@ -248,7 +246,11 @@ def read_kred(info,basis,kred="KRED.DAT"):
     llen=len(line)
     charcount+=llen
     if llen==34:
-      eigsys['kpt_file_start'][tuple([int(i) for i in line.split()])]=charcount
+      kpt=tuple([int(i) for i in line.split()])
+      if kpt in eigsys['kpt_file_start']:
+        eigsys['kpt_file_start'][kpt].append(charcount)
+      else:
+        eigsys['kpt_file_start'][kpt] = [charcount]
 
   #for kpt in range(nkpts*eigsys['nspin']):
   #  try:
@@ -323,8 +325,8 @@ def read_kred(info,basis,kred="KRED.DAT"):
 
 ###############################################################################
 # Look up an eigenvector from KRED.DAT.
-# TODO: Further reduction in memory can be had by specifying nvirtual here.
-def eigvec_lookup(kpt,eigsys):
+# TODO: Further reduction in memory usage can be had by specifying nvirtual here.
+def eigvec_lookup(kpt,eigsys,spin=0):
   ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.
   Args:
     kpt (tuple of int): Kpoint coordinates.
@@ -339,7 +341,7 @@ def eigvec_lookup(kpt,eigsys):
   linesperkpt = ncpnts//4 + int(ncpnts%4>0)
 
   kredf = open(eigsys['kred'],'r')
-  kredf.seek(eigsys['kpt_file_start'][kpt])
+  kredf.seek(eigsys['kpt_file_start'][kpt][spin])
   eigvec = np.array([line.split() for li,line in enumerate(kredf) if li < linesperkpt],dtype=float)
 
   if eigsys['ikpt_iscmpx'][kpt]:
@@ -517,7 +519,9 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
 
   #eigvecs_real = eigsys['eigvecs'][kpt]['real']
   #eigvecs_imag = eigsys['eigvecs'][kpt]['imag']
-  eigvecs=normalize_eigvec(eigvec_lookup(kpt,eigsys),basis)
+  # TODO generalize no spin.
+  nspin=2
+  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(nspin)]
   atidxs = np.unique(basis['atom_shell'])-1
   nao_atom = np.zeros(atidxs.size,dtype=int)
   for shidx in range(len(basis['nao_shell'])):
@@ -531,7 +535,7 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs]
+  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs[s] for s in range(nspin)]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
