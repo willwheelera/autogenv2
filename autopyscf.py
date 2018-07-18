@@ -215,6 +215,7 @@ class PySCFPBCWriter:
     self.pyscf_path=[]
     self.spin=0
     self.gmesh=None
+    self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
     self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
@@ -322,6 +323,7 @@ class PySCFPBCWriter:
     outlines+=[
         "mol=gto.M(verbose=4,",
         "mesh="+str(self.gmesh)+",",
+        "ke_cutoff="+str(self.ke_cutoff)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
         "precision=%s"%self.cell_precision,
