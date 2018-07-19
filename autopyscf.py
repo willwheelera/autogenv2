@@ -244,7 +244,6 @@ class PySCFPBCWriter:
     self.method='RKS' 
     self.direct_scf_tol=1e-7
     self.spin=0
-    self.gmesh=None
     self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
@@ -290,10 +289,7 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      if self.supercell is None:
-        self.from_cif(d['cif'])
-      else:
-        self.from_cif(d['cif'],supercell=self.supercell)
+      self.from_cif(d['cif'], supercell=self.supercell)
 
 
   #-----------------------------------------------
@@ -345,7 +341,6 @@ class PySCFPBCWriter:
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "mesh="+str(self.gmesh)+",",
         "ke_cutoff="+str(self.ke_cutoff)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
