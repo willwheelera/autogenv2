@@ -214,9 +214,10 @@ class PySCFPBCWriter:
     self.direct_scf_tol=1e-7
     self.pyscf_path=[]
     self.spin=0
-    self.gmesh=[4,4,4] #TODO make this default to not specify, and use kecutoff.
+    self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
+    self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
     self.kpts=[2,2,2]
     self.bfd_library="BFD_Library.xml"
     self.basis_parameters={'cutoff':0.2,'basis_name':'vtz',
@@ -267,7 +268,7 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      self.from_cif(d['cif'])
+      self.from_cif(d['cif'], supercell=self.supercell)
 
 
   #-----------------------------------------------
@@ -320,10 +321,10 @@ class PySCFPBCWriter:
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "mesh="+str(self.gmesh)+",",
+        "ke_cutoff="+str(self.ke_cutoff)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
-        "precision=%s"%self.cell_precision,
+        "precision=%s,"%self.cell_precision,
         "basis=basis,",
         "spin=%i,"%self.spin,
         "ecp='%s')"%self.ecp,
