@@ -214,7 +214,6 @@ class PySCFPBCWriter:
     self.direct_scf_tol=1e-7
     self.pyscf_path=[]
     self.spin=0
-    self.gmesh=None
     self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
@@ -322,7 +321,6 @@ class PySCFPBCWriter:
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "mesh="+str(self.gmesh)+",",
         "ke_cutoff="+str(self.ke_cutoff)+",",
         "atom='''"+self.xyz+"''',",
         "a='''"+str(self.latticevec) +"''',",
