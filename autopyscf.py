@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os
 import shutil as sh
-#from pymatgen.io.cif import CifParser
+from pymatgen.io.cif import CifParser
 import pyscf
 from pyscf.scf.uhf import UHF,mulliken_meta
 from copy import deepcopy
